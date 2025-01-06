@@ -32,6 +32,9 @@ object APBInterfaceGenerator {
       bitWidth
     }
 
+    // Convert memorySizes to a List for splicing
+    val memorySizesList = memorySizes.toList
+
     // Generate the APB interface and memory sizes
     val apbInterface = q"""
       val apbInterface = Module(new ApbInterface(apbParams))
@@ -39,8 +42,9 @@ object APBInterfaceGenerator {
       apbInterface
     """
 
+    // Splice the memorySizesList into the result
     val result = q"""
-      ($apbInterface, $memorySizes)
+      ($apbInterface, $memorySizesList)
     """
 
     c.Expr[(ApbInterface, Seq[Int])](result)
