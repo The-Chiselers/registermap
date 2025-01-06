@@ -1,8 +1,10 @@
-import chisel3.{Bool, UInt}
-import tech.rocksavage.chiselware.apb.ApbInterface
+package tech.rocksavage.chiselware.addressable
 
 import scala.reflect.macros.blackbox.Context
 import scala.language.experimental.macros
+
+import chisel3.{Bool, UInt}
+import tech.rocksavage.chiselware.apb.ApbInterface
 
 object APBInterfaceGenerator {
   def generateAPBInterface(module: Any): (ApbInterface, Seq[Int]) = macro generateAPBInterfaceImpl
@@ -10,10 +12,13 @@ object APBInterfaceGenerator {
   def generateAPBInterfaceImpl(c: Context)(module: c.Expr[Any]): c.Expr[(ApbInterface, Seq[Int])] = {
     import c.universe._
 
+    // Import the AddressableRegister annotation
+    val addressableRegisterType = c.mirror.staticClass("tech.rocksavage.chiselware.addressable.AddressableRegister").toType
+
     // Extract the module's fields annotated with @AddressableRegister
     val moduleTree = module.tree
     val fields = moduleTree.tpe.decls.collect {
-      case m: MethodSymbol if m.isVal && m.annotations.exists(_.tree.tpe =:= typeOf[AddressableRegister]) =>
+      case m: MethodSymbol if m.isVal && m.annotations.exists(_.tree.tpe =:= addressableRegisterType) =>
         m
     }
 
@@ -32,6 +37,9 @@ object APBInterfaceGenerator {
       bitWidth
     }
 
+    // Convert memorySizes to a List for splicing
+    val memorySizesList = memorySizes.toList
+
     // Generate the APB interface and memory sizes
     val apbInterface = q"""
       val apbInterface = Module(new ApbInterface(apbParams))
@@ -39,8 +47,9 @@ object APBInterfaceGenerator {
       apbInterface
     """
 
+    // Splice the memorySizesList into the result
     val result = q"""
-      ($apbInterface, $memorySizes)
+      ($apbInterface, $memorySizesList)
     """
 
     c.Expr[(ApbInterface, Seq[Int])](result)
