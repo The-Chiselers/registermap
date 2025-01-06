@@ -5,6 +5,9 @@ import scala.language.experimental.macros
 import scala.reflect.macros.blackbox.Context
 import chisel3._
 
+import scala.annotation.compileTimeOnly
+
+@compileTimeOnly("enable macro paradise to expand macro annotations")
 object APBInterfaceGenerator {
   // Macro to generate APB interface and memorySizes
   def generateAPBInterface[T](module: T): (T, Seq[Int]) = macro generateAPBInterfaceImpl[T]
