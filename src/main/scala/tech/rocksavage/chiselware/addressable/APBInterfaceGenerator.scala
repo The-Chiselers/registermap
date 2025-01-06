@@ -1,55 +1,48 @@
+import chisel3.{Bool, UInt}
+import tech.rocksavage.chiselware.apb.ApbInterface
 
-package tech.rocksavage.chiselware.addressable
-
-import scala.language.experimental.macros
 import scala.reflect.macros.blackbox.Context
-import chisel3._
+import scala.language.experimental.macros
 
-import scala.annotation.compileTimeOnly
-
-@compileTimeOnly("enable macro paradise to expand macro annotations")
 object APBInterfaceGenerator {
-  // Macro to generate APB interface and memorySizes
-  def generateAPBInterface[T](module: T): (T, Seq[Int]) = macro generateAPBInterfaceImpl[T]
+  def generateAPBInterface(module: Any): (ApbInterface, Seq[Int]) = macro generateAPBInterfaceImpl
 
-  def generateAPBInterfaceImpl[T: c.WeakTypeTag](c: Context)(module: c.Expr[T]): c.Expr[(T, Seq[Int])] = {
+  def generateAPBInterfaceImpl(c: Context)(module: c.Expr[Any]): c.Expr[(ApbInterface, Seq[Int])] = {
     import c.universe._
 
-    // Collect all annotated registers and their bit sizes
-    val fields = module.tree.tpe.decls.collect {
+    // Extract the module's fields annotated with @AddressableRegister
+    val moduleTree = module.tree
+    val fields = moduleTree.tpe.decls.collect {
       case m: MethodSymbol if m.isVal && m.annotations.exists(_.tree.tpe =:= typeOf[AddressableRegister]) =>
-        val bitSize = m.returnType match {
-          case t if t =:= typeOf[Bool] => 1
-          case t if t =:= typeOf[UInt] =>
-            // Extract the width from the UInt type (e.g., UInt(32.W) => 32)
-            t.typeArgs.head match {
-              case ConstantType(Constant(width: Int)) => width
-              case _ => c.abort(c.enclosingPosition, s"Unsupported UInt width for register ${m.name}")
-            }
-          case _ => c.abort(c.enclosingPosition, s"Unsupported register type for ${m.name}")
-        }
-        (m.name.toString, bitSize)
+        m
     }
 
-    // Generate memorySizes sequence
-    val memorySizes = fields.map(_._2)
-
-    // Generate APB interface logic
-    val apbLogic = fields.map { case (name, bitSize) =>
-      q"""
-        // Logic for addressable register $name
-        val $name = RegInit(false.B)
-        // Connect to APB interface
-        apbInterface.io.mem.addr := addrDecode.io.addrOut
-        apbInterface.io.mem.wdata := io.apb.PWDATA
-        apbInterface.io.mem.read := !io.apb.PWRITE
-        apbInterface.io.mem.write := io.apb.PWRITE
-      """
+    // Calculate memory sizes based on the bit widths of the registers
+    val memorySizes = fields.map { field =>
+      val fieldType = field.returnType
+      val bitWidth = fieldType match {
+        case t if t =:= typeOf[Bool] => 1
+        case t if t <:< typeOf[UInt] =>
+          t.typeArgs.head match {
+            case TypeRef(_, _, List(Literal(Constant(width: Int)))) => width
+            case _ => c.abort(c.enclosingPosition, s"Unsupported UInt width in field ${field.name}")
+          }
+        case _ => c.abort(c.enclosingPosition, s"Unsupported type for field ${field.name}")
+      }
+      bitWidth
     }
 
-    // Return the modified module and memorySizes
-    c.Expr[(T, Seq[Int])](q"""
-      ($module.asInstanceOf[T], Seq(..$memorySizes))
-    """)
+    // Generate the APB interface and memory sizes
+    val apbInterface = q"""
+      val apbInterface = Module(new ApbInterface(apbParams))
+      apbInterface.io.apb <> io.apb
+      apbInterface
+    """
+
+    val result = q"""
+      ($apbInterface, $memorySizes)
+    """
+
+    c.Expr[(ApbInterface, Seq[Int])](result)
   }
 }

@@ -1,9 +1,4 @@
-package tech.rocksavage.chiselware.addressable
-
 import scala.annotation.StaticAnnotation
 
-// Annotation for addressable registers
+/** Annotation to mark a register as addressable via APB. */
 class AddressableRegister extends StaticAnnotation
-
-// Annotation for addressable modules
-class AddressableModule extends StaticAnnotation
