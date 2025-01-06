@@ -37,20 +37,19 @@ object APBInterfaceGenerator {
     // Generate APB interface logic
     val apbLogic = fields.map { case (name, bitSize) =>
       q"""
-      val $name = RegInit(false.B)
-      // Connect to APB interface
-      apbInterface.io.mem.addr := addrDecode.io.addrOut
-      apbInterface.io.mem.wdata := io.apb.PWDATA
-      apbInterface.io.mem.read := !io.apb.PWRITE
-      apbInterface.io.mem.write := io.apb.PWRITE
-    """
+        // Logic for addressable register $name
+        val $name = RegInit(false.B)
+        // Connect to APB interface
+        apbInterface.io.mem.addr := addrDecode.io.addrOut
+        apbInterface.io.mem.wdata := io.apb.PWDATA
+        apbInterface.io.mem.read := !io.apb.PWRITE
+        apbInterface.io.mem.write := io.apb.PWRITE
+      """
     }
 
     // Return the modified module and memorySizes
     c.Expr[(T, Seq[Int])](q"""
-    (new {
-      ..$apbLogic
-    }, Seq(..$memorySizes))
-  """)
+      ($module.asInstanceOf[T], Seq(..$memorySizes))
+    """)
   }
 }
