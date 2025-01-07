@@ -14,7 +14,7 @@ lazy val addrdecode = RootProject(uri("https://github.com/The-Chiselers/addrdeco
 lazy val apbinterface = RootProject(uri("https://github.com/The-Chiselers/apbinterface.git#main"))
 lazy val root = (project in file("."))
   .settings(
-    name                   := "addressablemodule",
+    name                   := "registermap",
     Test / publishArtifact := true,
     libraryDependencies ++= Seq(
       "org.chipsalliance" %% "chisel"     % chiselVersion,
