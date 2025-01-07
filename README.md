@@ -1,79 +1,70 @@
-# RegisterMap Module
+# RegisterMap Library
 
 ## Overview
 
-The `RegisterMap` module is a utility designed to simplify the management of addressable registers in hardware designs using Chisel. It provides a structured way to define, read, and write registers, making it easier to handle complex memory-mapped I/O operations.
+The `RegisterMap` library is a Chisel-based utility designed to simplify the management of addressable registers in hardware designs. It provides a flexible and configurable way to define, read, and write registers, making it particularly useful for systems with memory-mapped I/O or complex register configurations. The library is built on top of Chisel, a hardware design language, and integrates seamlessly with other Chisel components.
 
 ## Features
 
-- **Register Creation**: Easily create addressable registers with specified data and address widths.
-- **Read/Write Callbacks**: Define custom read and write functions for each register.
-- **Memory Management**: Automatically manage memory offsets and sizes for registers.
+- **Addressable Registers**: Easily define and manage addressable registers with customizable widths and offsets.
+- **Read/Write Callbacks**: Implement custom read and write logic for each register using callback functions.
+- **Automatic Offset Management**: Automatically calculate register offsets based on their widths.
 - **Integration with APB**: Seamlessly integrate with APB (Advanced Peripheral Bus) interfaces for memory-mapped I/O.
+- **Scalable and Modular**: Designed to be scalable and modular, allowing for easy integration into larger designs.
 
 ## Usage
 
 ### Defining Registers
 
-To define a register, use the `createAddressableRegister` method. This method takes the register and its name as parameters and automatically handles the read and write operations.
+To define a register, use the `createAddressableRegister` method provided by the `RegisterMap` class. This method takes the register and its name as parameters and automatically handles the creation of read and write callbacks.
 
 ```scala
-val registerMap = new RegisterMap(dataWidth, addressWidth)
+val registerMap = new RegisterMap(dataWidth = 32, addressWidth = 32)
 
 val en: Bool = RegInit(false.B)
 registerMap.createAddressableRegister(en, "en")
 
-val prescaler: UInt = RegInit(0.U(timerParams.countWidth.W))
+val prescaler: UInt = RegInit(0.U(32.W))
 registerMap.createAddressableRegister(prescaler, "prescaler")
 ```
 
-### Reading and Writing Registers
+### Integrating with APB
 
-The `RegisterMap` module provides read and write callbacks that can be used to handle memory operations. These callbacks are automatically generated when a register is created.
-
-```scala
-// Handle writes to the registers
-when(apbInterface.io.mem.write) {
-  for (reg <- registerMap.getRegisters) {
-    when(addrDecode.io.sel(reg.id)) {
-      reg.writeCallback(addrDecode.io.addrOffset, apbInterface.io.mem.wdata)
-    }
-  }
-}
-
-// Handle reads from the registers
-when(apbInterface.io.mem.read) {
-  apbInterface.io.mem.rdata := 0.U
-  for (reg <- registerMap.getRegisters) {
-    when(addrDecode.io.sel(reg.id)) {
-      apbInterface.io.mem.rdata := reg.readCallback(addrDecode.io.addrOffset)
-    }
-  }
-}
-```
-
-### Integration with APB
-
-The `RegisterMap` module can be integrated with an APB interface to handle memory-mapped I/O operations. This involves connecting the APB interface to the `RegisterMap` and using the address decode module to manage memory accesses.
+The `RegisterMap` library can be easily integrated with APB interfaces. Use the `getAddrDecodeParams` method to generate address decode parameters and connect them to an `AddrDecode` module.
 
 ```scala
-val apbInterface = Module(new ApbInterface(ApbParams(dataWidth, addressWidth)))
-apbInterface.io.apb <> io.apb
-
 val addrDecodeParams = registerMap.getAddrDecodeParams
 val addrDecode = Module(new AddrDecode(addrDecodeParams))
-addrDecode.io.addr := apbInterface.io.mem.addr
+
+addrDecode.io.addr := io.apb.PADDR
 addrDecode.io.addrOffset := 0.U
 addrDecode.io.en := true.B
 addrDecode.io.selInput := true.B
 
-apbInterface.io.mem.error := addrDecode.io.errorCode === AddrDecodeError.AddressOutOfRange
-apbInterface.io.mem.rdata := 0.U
+io.apb.PREADY := (io.apb.PENABLE && io.apb.PSEL)
+io.apb.PSLVERR := addrDecode.io.errorCode === AddrDecodeError.AddressOutOfRange
+
+io.apb.PRDATA := 0.U
+when(io.apb.PSEL && io.apb.PENABLE) {
+  when(io.apb.PWRITE) {
+    for (reg <- registerMap.getRegisters) {
+      when(addrDecode.io.sel(reg.id)) {
+        reg.writeCallback(addrDecode.io.addrOffset, io.apb.PWDATA)
+      }
+    }
+  }.otherwise {
+    for (reg <- registerMap.getRegisters) {
+      when(addrDecode.io.sel(reg.id)) {
+        io.apb.PRDATA := reg.readCallback(addrDecode.io.addrOffset)
+      }
+    }
+  }
+}
 ```
 
-## Example
+### Example: Timer Design
 
-The following example demonstrates how to use the `RegisterMap` module in a timer design.
+The following example demonstrates how to use the `RegisterMap` library in a timer design with an APB interface.
 
 ```scala
 class Timer(val timerParams: TimerParams) extends Module {
@@ -106,32 +97,29 @@ class Timer(val timerParams: TimerParams) extends Module {
   val setCount: Bool = RegInit(false.B)
   registerMap.createAddressableRegister(setCount, "setCount")
 
-  val apbInterface = Module(new ApbInterface(ApbParams(dataWidth, addressWidth)))
-  apbInterface.io.apb <> io.apb
-
   val addrDecodeParams = registerMap.getAddrDecodeParams
   val addrDecode = Module(new AddrDecode(addrDecodeParams))
-  addrDecode.io.addr := apbInterface.io.mem.addr
+  addrDecode.io.addr := io.apb.PADDR
   addrDecode.io.addrOffset := 0.U
   addrDecode.io.en := true.B
   addrDecode.io.selInput := true.B
 
-  apbInterface.io.mem.error := addrDecode.io.errorCode === AddrDecodeError.AddressOutOfRange
-  apbInterface.io.mem.rdata := 0.U
+  io.apb.PREADY := (io.apb.PENABLE && io.apb.PSEL)
+  io.apb.PSLVERR := addrDecode.io.errorCode === AddrDecodeError.AddressOutOfRange
 
-  when(apbInterface.io.mem.write) {
-    for (reg <- registerMap.getRegisters) {
-      when(addrDecode.io.sel(reg.id)) {
-        reg.writeCallback(addrDecode.io.addrOffset, apbInterface.io.mem.wdata)
+  io.apb.PRDATA := 0.U
+  when(io.apb.PSEL && io.apb.PENABLE) {
+    when(io.apb.PWRITE) {
+      for (reg <- registerMap.getRegisters) {
+        when(addrDecode.io.sel(reg.id)) {
+          reg.writeCallback(addrDecode.io.addrOffset, io.apb.PWDATA)
+        }
       }
-    }
-  }
-
-  when(apbInterface.io.mem.read) {
-    apbInterface.io.mem.rdata := 0.U
-    for (reg <- registerMap.getRegisters) {
-      when(addrDecode.io.sel(reg.id)) {
-        apbInterface.io.mem.rdata := reg.readCallback(addrDecode.io.addrOffset)
+    }.otherwise {
+      for (reg <- registerMap.getRegisters) {
+        when(addrDecode.io.sel(reg.id)) {
+          io.apb.PRDATA := reg.readCallback(addrDecode.io.addrOffset)
+        }
       }
     }
   }
@@ -155,4 +143,4 @@ class Timer(val timerParams: TimerParams) extends Module {
 
 ## Conclusion
 
-The `RegisterMap` module is a powerful tool for managing addressable registers in Chisel-based hardware designs. It simplifies the process of defining, reading, and writing registers, and integrates seamlessly with APB interfaces for memory-mapped I/O operations.
+The `RegisterMap` library is a powerful tool for managing addressable registers in Chisel-based hardware designs. It simplifies the process of defining, reading, and writing registers, provides robust offset management, and integrates seamlessly with APB interfaces. The library is designed to be scalable and modular, making it an essential component for complex systems with memory-mapped I/O.
