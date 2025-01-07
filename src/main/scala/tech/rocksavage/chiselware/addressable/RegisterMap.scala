@@ -84,7 +84,7 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int) {
     reg
   }
 
-  def getMemorySizes: List[Int] = registers.map(_.width)
+  def getMemorySizes: List[Int] = registers.map(r => (r.width + dataWidth - 1) / dataWidth)
 
   def getAddrDecodeParams: AddrDecodeParams = {
     AddrDecodeParams(dataWidth, addressWidth, getMemorySizes)
