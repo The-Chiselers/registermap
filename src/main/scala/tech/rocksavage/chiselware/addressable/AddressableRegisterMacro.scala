@@ -22,11 +22,12 @@ object AddressableRegisterMacro {
               case _ => c.abort(c.enclosingPosition, s"Unsupported initialization for UInt register $name")
             }
             val writeCallback = q"""
-                (offset: UInt, width: Int, value: UInt) => {
-                  val blankMask = (1.U << width) - 1.U
-                  val mask = blankMask << offset
-                  $name := ($name & ~mask) | ((value & blankMask) << offset)
-                }
+              (offset: UInt, width: Int, value: UInt) => {
+                val blankMask = (1.U << width) - 1.U
+                val shiftAmount = (offset * width.U)(width - 1, 0)  // Limit shift amount to width bits
+                val mask = blankMask << shiftAmount
+                $name := ($name & ~mask) | ((value & blankMask) << shiftAmount)
+              }
             """
             (width, writeCallback)
           case tq"Bool" =>
@@ -39,11 +40,12 @@ object AddressableRegisterMacro {
 
     // Generate the read function to read N bits from the register at some offset
     val readFunction = q"""
-        (offset: UInt, width: Int) => {
-          val blankMask = (1.U << width) - 1.U
-          val mask = blankMask << offset
-          ((mask & $registerName) >> offset) & blankMask
-        }
+      (offset: UInt, width: Int) => {
+        val blankMask = (1.U << width) - 1.U
+        val shiftAmount = offset(width - 1, 0)  // Limit shift amount to width bits
+        val mask = blankMask << shiftAmount
+        ((mask & $registerName) >> shiftAmount) & blankMask
+      }
     """
 
     // Generate the code to define the register and add it to the RegisterMap
