@@ -11,7 +11,6 @@ val chiselVersion   = "6.6.0"
 val scalafmtVersion = "2.5.0"
 
 lazy val addrdecode = RootProject(uri("https://github.com/The-Chiselers/addrdecode.git#main"))
-lazy val apbinterface = RootProject(uri("https://github.com/The-Chiselers/apbinterface.git#main"))
 lazy val root = (project in file("."))
   .settings(
     name                   := "registermap",
@@ -33,7 +32,6 @@ lazy val root = (project in file("."))
     )
   )
   .dependsOn(addrdecode)
-  .dependsOn(apbinterface)
 
 
 // Scala coverage settings
