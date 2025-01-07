@@ -21,18 +21,29 @@ object AddressableRegisterMacro {
               case q"$default.U($width.W)" => width
               case _ => c.abort(c.enclosingPosition, s"Unsupported initialization for UInt register $name")
             }
-            (width, q"(value: UInt) => $name := value")
+            val writeCallback = q"""
+                (offset: UInt, width: UInt, value: UInt) => {
+                  val blankMask = (1.U << width) - 1.U
+                  val mask = blankMask << offset
+                  $name := ($name & ~mask) | ((value & blankMask) << offset)
+                }
+            """
+            (width, writeCallback)
           case tq"Bool" =>
-            (q"1", q"(value: UInt) => $name := value(0)")
+            (q"1", q"(offset: UInt, width: UInt, value: UInt) => $name := value(0)")
           case _ => c.abort(c.enclosingPosition, s"Unsupported type for register $name: $tpe")
         }
         (name, tpe, width, writeCallback)
       case _ => c.abort(c.enclosingPosition, "Invalid annotation target")
     }
 
-    // Generate the read function
+    // Generate the read function to read N bits from the register at some offset
     val readFunction = q"""
-      () => $registerName
+        (offset: UInt, width: UInt) => {
+          val blankMask = (1.U << width) - 1.U
+          val mask = blankMask << offset
+          ((mask & $registerName) >> offset) & blankMask
+        }
     """
 
     // Generate the code to define the register and add it to the RegisterMap
