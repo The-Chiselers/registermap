@@ -7,6 +7,6 @@ case class RegisterDescription(
                                 width: Int,
                                 offset: Int,
                                 id: Int,
-                                readCallback: (UInt, UInt) => UInt,
-                                writeCallback: (UInt, UInt, UInt) => Unit
+                                readCallback: (UInt, Int) => UInt,
+                                writeCallback: (UInt, Int, UInt) => Unit
                               )
