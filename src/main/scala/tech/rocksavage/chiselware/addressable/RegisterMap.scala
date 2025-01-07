@@ -91,4 +91,9 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int) {
   }
 
   def getRegisters: List[RegisterDescription] = registers
+
+  def getAddressOfRegister(name: String): Option[Int] = {
+    val reg = registers.find(_.name == name)
+    reg.map(_.offset)
+  }
 }
