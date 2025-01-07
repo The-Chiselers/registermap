@@ -22,7 +22,7 @@ object AddressableRegisterMacro {
               case _ => c.abort(c.enclosingPosition, s"Unsupported initialization for UInt register $name")
             }
             val writeCallback = q"""
-                (offset: UInt, width: UInt, value: UInt) => {
+                (offset: UInt, width: Int, value: UInt) => {
                   val blankMask = (1.U << width) - 1.U
                   val mask = blankMask << offset
                   $name := ($name & ~mask) | ((value & blankMask) << offset)
@@ -30,7 +30,7 @@ object AddressableRegisterMacro {
             """
             (width, writeCallback)
           case tq"Bool" =>
-            (q"1", q"(offset: UInt, width: UInt, value: UInt) => $name := value(0)")
+            (q"1", q"(offset: UInt, width: Int, value: UInt) => $name := value(0)")
           case _ => c.abort(c.enclosingPosition, s"Unsupported type for register $name: $tpe")
         }
         (name, tpe, width, writeCallback)
