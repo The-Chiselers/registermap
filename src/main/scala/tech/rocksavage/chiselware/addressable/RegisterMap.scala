@@ -8,7 +8,7 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int) {
   private var currentOffset: Int = 0
   private var currentId: Int = 0
 
-  def addRegister(name: String, width: Int, readCallback: () => UInt, writeCallback: UInt => Unit): RegisterDescription = {
+  def addRegister(name: String, width: Int, readCallback: (UInt, Int) => UInt, writeCallback: (UInt, Int, UInt) => Unit): RegisterDescription = {
     val reg = RegisterDescription(name, width, currentOffset, currentId, readCallback, writeCallback)
     registers = registers :+ reg
     currentOffset += (width + dataWidth - 1) / dataWidth
