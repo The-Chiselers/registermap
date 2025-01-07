@@ -39,7 +39,7 @@ object AddressableRegisterMacro {
 
     // Generate the read function to read N bits from the register at some offset
     val readFunction = q"""
-        (offset: UInt, width: UInt) => {
+        (offset: UInt, width: Int) => {
           val blankMask = (1.U << width) - 1.U
           val mask = blankMask << offset
           ((mask & $registerName) >> offset) & blankMask
