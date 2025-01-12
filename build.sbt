@@ -13,12 +13,9 @@ val scalafmtVersion = "2.5.0"
 lazy val addrdecode = RootProject(
   uri("https://github.com/The-Chiselers/addrdecode.git#main")
 )
-lazy val apbinterface = RootProject(
-  uri("https://github.com/The-Chiselers/apbinterface.git#main")
-)
 lazy val root = (project in file("."))
   .settings(
-    name                   := "addressablemodule",
+    name                   := "registermap",
     Test / publishArtifact := true,
     libraryDependencies ++= Seq(
       "org.chipsalliance" %% "chisel"     % chiselVersion,
@@ -37,7 +34,6 @@ lazy val root = (project in file("."))
     )
   )
   .dependsOn(addrdecode)
-  .dependsOn(apbinterface)
 
 // Scala coverage settings
 coverageDataDir            := target.value / "../generated/scalaCoverage"
