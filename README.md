@@ -1,5 +1,16 @@
 # RegisterMap Library
 
+## Setup
+
+### Git 
+
+```bash
+git clone [url].git
+git submodule update --init --recursive
+touch .git-blame-ignore-revs
+git config blame.ignoreRevsFile .git-blame-ignore-revs
+``` 
+
 ## Overview
 
 The `RegisterMap` library is a Chisel-based utility designed to simplify the management of addressable registers in hardware designs. It provides a flexible and configurable way to define, read, and write registers, making it particularly useful for systems with memory-mapped I/O or complex register configurations. The library is built on top of Chisel, a hardware design language, and integrates seamlessly with other Chisel components.
