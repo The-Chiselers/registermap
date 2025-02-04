@@ -11,7 +11,8 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int) {
 
     def createAddressableRegister[T <: Data](
         register: T,
-        regName: String
+        regName: String,
+        verbose: Boolean = false
     ): Unit = {
         val registerWidth = register.getWidth
         val numWords      = (registerWidth + dataWidth - 1) / dataWidth
@@ -43,6 +44,13 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int) {
                     }
                 }
             }
+            if (verbose) {
+                printf(
+                  "Register %s read with value %x\n",
+                  regName,
+                  out
+                )
+            }
             out
         }
 
@@ -69,6 +77,13 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int) {
 
             newRegUInt := segments.asUInt
             register   := newRegUInt.asTypeOf(register)
+            if (verbose) {
+                printf(
+                  "Register %s written with value %x\n",
+                  regName,
+                  newRegUInt
+                )
+            }
         }
 
         // Add the register to the RegisterMap
@@ -106,6 +121,12 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int) {
 
     def getMemorySizes: List[Int] =
         registers.map(r => (r.width + dataWidth - 1) / dataWidth)
+    def getMemorySizes: List[Int] =
+        registers.map(r => (r.width + dataWidth - 1) / dataWidth)
+
+    def getAddrDecodeParams: AddrDecodeParams = {
+        AddrDecodeParams(dataWidth, addressWidth, getMemorySizes)
+    }
 
     def getRegisters: List[RegisterDescription] = registers
 
