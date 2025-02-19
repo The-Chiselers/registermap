@@ -12,6 +12,7 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int) {
     def createAddressableRegister[T <: Data](
         register: T,
         regName: String,
+        readOnly: Boolean = false,
         verbose: Boolean = false
     ): Unit = {
         val registerWidth = register.getWidth
@@ -84,13 +85,30 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int) {
             }
         }
 
+        def readOnlyAttemptWrite(offset: UInt, value: UInt): Unit = {
+            if (verbose) {
+                printf(
+                  s"Attempted write to read-only register ${regName} with value %x\n",
+                  value
+                )
+            }
+        }
+
         // Add the register to the RegisterMap
-        addRegister(
-          regName,
-          registerWidth,
-          readFunction,
-          writeCallback
-        )
+        if (readOnly)
+            addRegister(
+              regName,
+              registerWidth,
+              readFunction,
+              readOnlyAttemptWrite
+            )
+        else
+            addRegister(
+              regName,
+              registerWidth,
+              readFunction,
+              writeCallback
+            )
     }
 
     def addRegister(
