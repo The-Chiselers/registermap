@@ -144,4 +144,12 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int) {
         val reg = registers.find(_.name == name)
         reg.map(_.offset)
     }
+
+    def prettyPrint(): Unit = {
+        println("Register Map:")
+        registers.foreach(r => {
+            println(s"Name: ${r.name}, Width: ${r.width}, Offset: ${r.offset}")
+        })
+    }
+
 }
