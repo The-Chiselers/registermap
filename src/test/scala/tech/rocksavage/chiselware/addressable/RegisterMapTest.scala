@@ -16,72 +16,80 @@ import tech.rocksavage.chiselware.addrdecode.AddrDecode
  */
 
 class RegisterMapTest extends AnyFlatSpec with ChiselScalatestTester with Matchers {
-    class I2cStub32 extends Module {
-        val i2cStubRegMap = new RegisterMap(32,8,Some(8))
+
+    class I2cBundle(size: Int) extends Bundle {
+        val mCtrl = UInt(size.W)
+        val mStatus = UInt(size.W)
+        val mBaud = UInt(size.W)
+        val mAddr = UInt(size.W)
+        val mData = UInt(size.W)
+        val sCtrl = UInt(size.W)
+        val sStatus = UInt(size.W)
+        val sAddr = UInt(size.W)
+        val sData = UInt(size.W)
+    }
+
+    class I2cStub(size: Int, dataWidth: Int, addrWidth: Int, wordWidth: Int) extends Module {
+        val i2cStubRegMap = new RegisterMap(dataWidth, addrWidth, Some(wordWidth))
         def getRegMap = i2cStubRegMap
         val io = IO(
             new Bundle {
-                val i = Input(UInt(1.W))
-                val o = Output(UInt(1.W))
+                val setManually = Input(Bool())
+                val addr = Input(UInt(addrWidth.W))
+                val dataIn = Input(UInt(dataWidth.W))
+                val dataOut = Output(UInt(dataWidth.W))
+                val read = Input(Bool())
+                val write = Input(Bool())
+
+                val inputBundle = Input(new I2cBundle(size))
+                val outputBundle = Output(new I2cBundle(size))
             }
         )
-        io.o := io.i
 
-        val mctrl  = RegInit(0.U(32.W))
-        i2cStubRegMap.createAddressableRegister(mctrl, "mctrl")
-        val mstatus = RegInit(0.U(32.W))
-        i2cStubRegMap.createAddressableRegister(mstatus, "mstatus")
-        val mbaud   = RegInit(10.U(32.W))
-        i2cStubRegMap.createAddressableRegister(mbaud, "mbaud")
-        val maddr   = RegInit(0.U(32.W))
-        i2cStubRegMap.createAddressableRegister(maddr, "maddr")
-        val mdata   = RegInit(0.U(32.W))
-        i2cStubRegMap.createAddressableRegister(mdata, "mdata")
-        // SLAVE REGISTERS
-        val sctrl     = RegInit(0.U(32.W))
-        i2cStubRegMap.createAddressableRegister(sctrl, "sctrl")
-        val sstatus   = RegInit(0.U(32.W))
-        i2cStubRegMap.createAddressableRegister(sstatus, "sstatus")
-        val saddr     = RegInit(0.U(32.W))
-        i2cStubRegMap.createAddressableRegister(saddr, "saddr")
-        val sdata     = RegInit(0.U(32.W))
-        i2cStubRegMap.createAddressableRegister(sdata, "sdata")
-    }
+        val regBundle = Reg(new I2cBundle(size))
 
-    class I2cStub8 extends Module {
-        val i2cStubRegMap = new RegisterMap(8,8,Some(8))
-        def getRegMap = i2cStubRegMap
-        val io = IO(
-            new Bundle {
-                val i = Input(UInt(1.W))
-                val o = Output(UInt(1.W))
+        when(io.setManually) {
+            regBundle := io.inputBundle
+        }
+
+        io.outputBundle := regBundle
+
+        i2cStubRegMap.createAddressableRegister(regBundle.mCtrl, "mctrl")
+        i2cStubRegMap.createAddressableRegister(regBundle.mStatus, "mstatus")
+        i2cStubRegMap.createAddressableRegister(regBundle.mBaud, "mbaud")
+        i2cStubRegMap.createAddressableRegister(regBundle.mAddr, "maddr")
+        i2cStubRegMap.createAddressableRegister(regBundle.mData, "mdata")
+        i2cStubRegMap.createAddressableRegister(regBundle.sCtrl, "sctrl")
+        i2cStubRegMap.createAddressableRegister(regBundle.sStatus, "sstatus")
+        i2cStubRegMap.createAddressableRegister(regBundle.sAddr, "saddr")
+        i2cStubRegMap.createAddressableRegister(regBundle.sData, "sdata")
+
+        val addrDecodeParams = i2cStubRegMap.getAddrDecodeParams
+        val addrDecode       = Module(new AddrDecode(addrDecodeParams))
+        addrDecode.io.addrRaw    := io.addr
+        addrDecode.io.en         := true.B
+        addrDecode.io.selInput   := true.B
+
+        io.dataOut := 0.U
+        when(io.write) {
+            for (reg <- i2cStubRegMap.getRegisters) {
+                when(addrDecode.io.sel(reg.id)) {
+                    reg.writeCallback(addrDecode.io.addrOut, io.dataIn)
+                }
             }
-        )
-        io.o := io.i
-
-        val mctrl  = RegInit(0.U(8.W))
-        i2cStubRegMap.createAddressableRegister(mctrl, "mctrl")
-        val mstatus = RegInit(0.U(8.W))
-        i2cStubRegMap.createAddressableRegister(mstatus, "mstatus")
-        val mbaud   = RegInit(10.U(8.W))
-        i2cStubRegMap.createAddressableRegister(mbaud, "mbaud")
-        val maddr   = RegInit(0.U(8.W))
-        i2cStubRegMap.createAddressableRegister(maddr, "maddr")
-        val mdata   = RegInit(0.U(8.W))
-        i2cStubRegMap.createAddressableRegister(mdata, "mdata")
-        // SLAVE REGISTERS
-        val sctrl     = RegInit(0.U(8.W))
-        i2cStubRegMap.createAddressableRegister(sctrl, "sctrl")
-        val sstatus   = RegInit(0.U(8.W))
-        i2cStubRegMap.createAddressableRegister(sstatus, "sstatus")
-        val saddr     = RegInit(0.U(8.W))
-        i2cStubRegMap.createAddressableRegister(saddr, "saddr")
-        val sdata     = RegInit(0.U(8.W))
-        i2cStubRegMap.createAddressableRegister(sdata, "sdata")
+        }
+        when(io.read) {
+            for (reg <- i2cStubRegMap.getRegisters) {
+                when(addrDecode.io.sel(reg.id)) {
+                    io.dataOut := reg.readCallback(addrDecode.io.addrOut)
+                }
+            }
+        }
     }
+    val backendAnnotations = Seq(chiseltest.WriteVcdAnnotation, TargetDirAnnotation("out/test"))
 
     it should "Intantiate the correct I2C Registermap at 32 data size" in {
-        test(new I2cStub32) { dut =>
+        test(new I2cStub(32, 32, 32, 8)) { dut =>
 
             val expectedMctrl = 0
             val expectedMstatus = 4
@@ -117,8 +125,80 @@ class RegisterMapTest extends AnyFlatSpec with ChiselScalatestTester with Matche
         }
     }
 
+    it should "correctly read regs at 32 bit" in {
+        test(new I2cStub(32, 32, 32, 8))
+          .withAnnotations(backendAnnotations)
+          { dut =>
+
+            val i2cStubRegMap = dut.getRegMap
+
+            val actualMctrl = i2cStubRegMap.getAddressOfRegister("mctrl").get
+            val actualMstatus = i2cStubRegMap.getAddressOfRegister("mstatus").get
+            val actualMbaud = i2cStubRegMap.getAddressOfRegister("mbaud").get
+            val actualMaddr = i2cStubRegMap.getAddressOfRegister("maddr").get
+            val actualMdata = i2cStubRegMap.getAddressOfRegister("mdata").get
+            val actualSctrl = i2cStubRegMap.getAddressOfRegister("sctrl").get
+            val actualSstatus = i2cStubRegMap.getAddressOfRegister("sstatus").get
+            val actualSaddr = i2cStubRegMap.getAddressOfRegister("saddr").get
+            val actualSdata = i2cStubRegMap.getAddressOfRegister("sdata").get
+
+
+            // #### Test MCTRL ####
+            val randData = randInt(32)
+            dut.io.setManually.poke(false.B)
+            dut.clock.step()
+            dut.io.outputBundle.mAddr.expect(0.U)
+            dut.io.inputBundle.mAddr.poke(randData.U)
+            dut.io.setManually.poke(true.B)
+            dut.clock.step()
+
+            // Read the value back
+            dut.io.addr.poke(actualMaddr.U)
+            dut.io.read.poke(true.B)
+            dut.clock.step()
+            dut.io.dataOut.expect(randData.U)
+            dut.io.addr.poke(0.U)
+            dut.io.read.poke(false.B)
+        }
+    }
+
+  it should "correctly write regs at 32 bits" in {
+    test(new I2cStub(32, 32, 32, 8))
+      .withAnnotations(backendAnnotations)
+      { dut =>
+
+        val i2cStubRegMap = dut.getRegMap
+
+        val actualMctrl = i2cStubRegMap.getAddressOfRegister("mctrl").get
+        val actualMstatus = i2cStubRegMap.getAddressOfRegister("mstatus").get
+        val actualMbaud = i2cStubRegMap.getAddressOfRegister("mbaud").get
+        val actualMaddr = i2cStubRegMap.getAddressOfRegister("maddr").get
+        val actualMdata = i2cStubRegMap.getAddressOfRegister("mdata").get
+        val actualSctrl = i2cStubRegMap.getAddressOfRegister("sctrl").get
+        val actualSstatus = i2cStubRegMap.getAddressOfRegister("sstatus").get
+        val actualSaddr = i2cStubRegMap.getAddressOfRegister("saddr").get
+        val actualSdata = i2cStubRegMap.getAddressOfRegister("sdata").get
+
+
+        // #### Test MCTRL ####
+        val randData = randInt(32)
+        dut.io.setManually.poke(false.B)
+        dut.clock.step()
+
+        dut.io.outputBundle.mAddr.expect(0.U)
+        dut.io.addr.poke(actualMaddr.U)
+        dut.io.dataIn.poke(randData.U)
+        dut.io.write.poke(true.B)
+        dut.clock.step()
+        dut.io.write.poke(false.B)
+        dut.io.outputBundle.mAddr.expect(randData.U)
+      }
+  }
+
     it should "Intantiate the correct I2C Registermap at 8 data size" in {
-        test(new I2cStub8) { dut =>
+        test(new I2cStub(8,8,8,8))
+//          .withAnnotations(backendAnnotations)
+          { dut =>
 
             val expectedMctrl = 0
             val expectedMstatus = 1
@@ -153,5 +233,78 @@ class RegisterMapTest extends AnyFlatSpec with ChiselScalatestTester with Matche
             assert(actualSdata == expectedSdata)
         }
     }
+
+    it should "correctly read regs at 8 bit" in {
+        test(new I2cStub(8, 8, 8, 8))
+//        .withAnnotations(backendAnnotations)
+        { dut =>
+
+            val i2cStubRegMap = dut.getRegMap
+
+            val actualMctrl = i2cStubRegMap.getAddressOfRegister("mctrl").get
+            val actualMstatus = i2cStubRegMap.getAddressOfRegister("mstatus").get
+            val actualMbaud = i2cStubRegMap.getAddressOfRegister("mbaud").get
+            val actualMaddr = i2cStubRegMap.getAddressOfRegister("maddr").get
+            val actualMdata = i2cStubRegMap.getAddressOfRegister("mdata").get
+            val actualSctrl = i2cStubRegMap.getAddressOfRegister("sctrl").get
+            val actualSstatus = i2cStubRegMap.getAddressOfRegister("sstatus").get
+            val actualSaddr = i2cStubRegMap.getAddressOfRegister("saddr").get
+            val actualSdata = i2cStubRegMap.getAddressOfRegister("sdata").get
+
+
+            // #### Test MCTRL ####
+            val randData = randInt(32)
+            dut.io.setManually.poke(false.B)
+            dut.clock.step()
+            dut.io.outputBundle.mAddr.expect(0.U)
+            dut.io.inputBundle.mAddr.poke(randData.U)
+            dut.io.setManually.poke(true.B)
+            dut.clock.step()
+             dut.io.setManually.poke(false.B)
+
+            // Read the value back
+            dut.io.addr.poke(actualMaddr.U)
+            dut.io.read.poke(true.B)
+            dut.clock.step()
+            dut.io.dataOut.expect(randData.U)
+            dut.io.addr.poke(0.U)
+            dut.io.read.poke(false.B)
+        }
+    }
+
+  it should "correctly write regs at 8 bits" in {
+    test(new I2cStub(8,8,8,8))
+      .withAnnotations(backendAnnotations)
+      { dut =>
+
+        val i2cStubRegMap = dut.getRegMap
+
+        val actualMctrl = i2cStubRegMap.getAddressOfRegister("mctrl").get
+        val actualMstatus = i2cStubRegMap.getAddressOfRegister("mstatus").get
+        val actualMbaud = i2cStubRegMap.getAddressOfRegister("mbaud").get
+        val actualMaddr = i2cStubRegMap.getAddressOfRegister("maddr").get
+        val actualMdata = i2cStubRegMap.getAddressOfRegister("mdata").get
+        val actualSctrl = i2cStubRegMap.getAddressOfRegister("sctrl").get
+        val actualSstatus = i2cStubRegMap.getAddressOfRegister("sstatus").get
+        val actualSaddr = i2cStubRegMap.getAddressOfRegister("saddr").get
+        val actualSdata = i2cStubRegMap.getAddressOfRegister("sdata").get
+
+
+        // #### Test MCTRL ####
+        val randData = randInt(32)
+        dut.io.setManually.poke(false.B)
+        dut.clock.step()
+
+        dut.io.outputBundle.mAddr.expect(0.U)
+        dut.io.addr.poke(actualMaddr.U)
+        dut.io.dataIn.poke(randData.U)
+        dut.io.write.poke(true.B)
+        dut.clock.step()
+        dut.io.write.poke(false.B)
+        dut.io.outputBundle.mAddr.expect(randData.U)
+      }
+  }
+
+    def randInt(max: Int): Int = scala.util.Random.nextInt(max)
 
 }

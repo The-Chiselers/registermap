@@ -11,34 +11,50 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int, val wordWidthOption
 
     val wordWidth: Int = wordWidthOption.getOrElse(dataWidth)
 
+    // Ensure that the data width is a multiple of the word width
+    require(dataWidth % wordWidth == 0)
+
+    // require the ratio of dataWidth to wordWidth is a power of 2
+    require(dataWidth / wordWidth == 1 || dataWidth / wordWidth == 2 || dataWidth / wordWidth == 4 || dataWidth / wordWidth == 8)
+
     def createAddressableRegister[T <: Data](
-        register: T,
-        regName: String,
-        readOnly: Boolean = false,
-        verbose: Boolean = false
-    ): Unit = {
+                                              register: T,
+                                              regName: String,
+                                              readOnly: Boolean = false,
+                                              verbose: Boolean = false
+                                            ): Unit = {
         val registerWidth = register.getWidth
-        val numWords      = ((registerWidth + dataWidth - 1) / dataWidth) * (dataWidth / wordWidth)
+        val numDatas      = ((registerWidth + dataWidth - 1) / dataWidth)
+        val ratio        = dataWidth / wordWidth
+        val numWords      = numDatas * ratio
 
         // Generate the read function
-        def readFunction(offset: UInt): UInt = {
-            val out = Wire(UInt(wordWidth.W))
+        def readFunction(offsetRaw: UInt): UInt = {
+
+            printf("RegisterMap: readFunction\n")
+            printf("offsetRaw: %x\n", offsetRaw)
+            // shift the offset by the ratio of dataWidth to wordWidth log2
+            printf("ratio: %x\n", ratio.U)
+            val offset = offsetRaw >> log2Ceil(ratio).U
+            printf("offset: %x\n", offset)
+
+            val out = Wire(UInt(dataWidth.W))
             out := 0.U
 
             val regUInt   = register.asUInt
             val totalBits = regUInt.getWidth
 
-            for (i <- 0 until numWords) {
+            for (i <- 0 until numDatas) {
                 when(offset === i.U) {
-                    val startBit = i * wordWidth
+                    val startBit = i * dataWidth
                     val endBit =
-                        math.min((i + 1) * wordWidth - 1, totalBits - 1)
+                        math.min((i + 1) * dataWidth - 1, totalBits - 1)
                     val bitsToRead = endBit - startBit + 1
 
                     if (bitsToRead > 0) {
                         val bits = regUInt(endBit, startBit)
-                        if (bitsToRead < wordWidth) {
-                            out := Cat(0.U((wordWidth - bitsToRead).W), bits)
+                        if (bitsToRead < dataWidth) {
+                            out := Cat(0.U((dataWidth - bitsToRead).W), bits)
                         } else {
                             out := bits
                         }
@@ -49,23 +65,26 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int, val wordWidthOption
             }
             if (verbose) {
                 printf(
-                  s"Register ${regName} read with value %x\n",
-                  out
+                    s"Register ${regName} read with value %x\n",
+                    out
                 )
             }
             out
         }
 
         // Generate the write callback
-        def writeCallback(offset: UInt, value: UInt): Unit = {
+        def writeCallback(offsetRaw: UInt, value: UInt): Unit = {
             val regUInt    = register.asUInt
             val totalBits  = regUInt.getWidth
-            val segments   = Wire(Vec(numWords, UInt(wordWidth.W)))
+            val segments   = Wire(Vec(numDatas, UInt(dataWidth.W)))
             val newRegUInt = Wire(UInt(totalBits.W))
 
-            for (i <- 0 until numWords) {
-                val startBit = i * wordWidth
-                val endBit   = math.min((i + 1) * wordWidth - 1, totalBits - 1)
+            // shift the offset by the ratio of dataWidth to wordWidth log2
+            val offset = offsetRaw >> log2Ceil(ratio).U
+
+            for (i <- 0 until numDatas) {
+                val startBit = i * dataWidth
+                val endBit   = math.min((i + 1) * dataWidth - 1, totalBits - 1)
                 val bitsToWrite = endBit - startBit + 1
 
                 val currentBits = regUInt(endBit, startBit)
@@ -81,8 +100,8 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int, val wordWidthOption
             register   := newRegUInt.asTypeOf(register)
             if (verbose) {
                 printf(
-                  s"Register ${regName} written with value %x\n",
-                  newRegUInt
+                    s"Register ${regName} written with value %x\n",
+                    newRegUInt
                 )
             }
         }
@@ -90,8 +109,8 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int, val wordWidthOption
         def readOnlyAttemptWrite(offset: UInt, value: UInt): Unit = {
             if (verbose) {
                 printf(
-                  s"Attempted write to read-only register ${regName} with value %x\n",
-                  value
+                    s"Attempted write to read-only register ${regName} with value %x\n",
+                    value
                 )
             }
         }
@@ -99,33 +118,33 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int, val wordWidthOption
         // Add the register to the RegisterMap
         if (readOnly)
             addRegister(
-              regName,
-              registerWidth,
-              readFunction,
-              readOnlyAttemptWrite
+                regName,
+                registerWidth,
+                readFunction,
+                readOnlyAttemptWrite
             )
         else
             addRegister(
-              regName,
-              registerWidth,
-              readFunction,
-              writeCallback
+                regName,
+                registerWidth,
+                readFunction,
+                writeCallback
             )
     }
 
     def addRegister(
-        name: String,
-        width: Int,
-        readCallback: UInt => UInt,
-        writeCallback: (UInt, UInt) => Unit
-    ): RegisterDescription = {
+                     name: String,
+                     width: Int,
+                     readCallback: UInt => UInt,
+                     writeCallback: (UInt, UInt) => Unit
+                   ): RegisterDescription = {
         val reg = RegisterDescription(
-          name,
-          width,
-          currentOffset,
-          currentId,
-          readCallback,
-          writeCallback
+            name,
+            width,
+            currentOffset,
+            currentId,
+            readCallback,
+            writeCallback
         )
         registers = registers :+ reg
         currentOffset += ((width + dataWidth - 1) / dataWidth) * (dataWidth / wordWidth)
