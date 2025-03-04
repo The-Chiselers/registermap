@@ -4,10 +4,12 @@ import chisel3._
 import chisel3.util._
 import tech.rocksavage.chiselware.addrdecode.AddrDecodeParams
 
-class RegisterMap(val dataWidth: Int, val addressWidth: Int) {
+class RegisterMap(val dataWidth: Int, val addressWidth: Int, val wordWidthOption: Option[Int] = None) {
     private var registers: List[RegisterDescription] = List.empty
     private var currentOffset: Int                   = 0
     private var currentId: Int                       = 0
+
+    val wordWidth: Int = wordWidthOption.getOrElse(dataWidth)
 
     def createAddressableRegister[T <: Data](
         register: T,
@@ -16,11 +18,11 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int) {
         verbose: Boolean = false
     ): Unit = {
         val registerWidth = register.getWidth
-        val numWords      = (registerWidth + dataWidth - 1) / dataWidth
+        val numWords      = ((registerWidth + dataWidth - 1) / dataWidth) * (dataWidth / wordWidth)
 
         // Generate the read function
         def readFunction(offset: UInt): UInt = {
-            val out = Wire(UInt(dataWidth.W))
+            val out = Wire(UInt(wordWidth.W))
             out := 0.U
 
             val regUInt   = register.asUInt
@@ -28,15 +30,15 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int) {
 
             for (i <- 0 until numWords) {
                 when(offset === i.U) {
-                    val startBit = i * dataWidth
+                    val startBit = i * wordWidth
                     val endBit =
-                        math.min((i + 1) * dataWidth - 1, totalBits - 1)
+                        math.min((i + 1) * wordWidth - 1, totalBits - 1)
                     val bitsToRead = endBit - startBit + 1
 
                     if (bitsToRead > 0) {
                         val bits = regUInt(endBit, startBit)
-                        if (bitsToRead < dataWidth) {
-                            out := Cat(0.U((dataWidth - bitsToRead).W), bits)
+                        if (bitsToRead < wordWidth) {
+                            out := Cat(0.U((wordWidth - bitsToRead).W), bits)
                         } else {
                             out := bits
                         }
@@ -58,12 +60,12 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int) {
         def writeCallback(offset: UInt, value: UInt): Unit = {
             val regUInt    = register.asUInt
             val totalBits  = regUInt.getWidth
-            val segments   = Wire(Vec(numWords, UInt(dataWidth.W)))
+            val segments   = Wire(Vec(numWords, UInt(wordWidth.W)))
             val newRegUInt = Wire(UInt(totalBits.W))
 
             for (i <- 0 until numWords) {
-                val startBit = i * dataWidth
-                val endBit   = math.min((i + 1) * dataWidth - 1, totalBits - 1)
+                val startBit = i * wordWidth
+                val endBit   = math.min((i + 1) * wordWidth - 1, totalBits - 1)
                 val bitsToWrite = endBit - startBit + 1
 
                 val currentBits = regUInt(endBit, startBit)
@@ -126,7 +128,7 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int) {
           writeCallback
         )
         registers = registers :+ reg
-        currentOffset += (width + dataWidth - 1) / dataWidth
+        currentOffset += ((width + dataWidth - 1) / dataWidth) * (dataWidth / wordWidth)
         currentId += 1
         reg
     }
