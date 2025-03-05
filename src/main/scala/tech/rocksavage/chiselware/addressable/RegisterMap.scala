@@ -31,12 +31,12 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int, val wordWidthOption
         // Generate the read function
         def readFunction(offsetRaw: UInt): UInt = {
 
-            printf("RegisterMap: readFunction\n")
-            printf("offsetRaw: %x\n", offsetRaw)
+//            printf("RegisterMap: readFunction\n")
+//            printf("offsetRaw: %x\n", offsetRaw)
             // shift the offset by the ratio of dataWidth to wordWidth log2
-            printf("ratio: %x\n", ratio.U)
+//            printf("ratio: %x\n", ratio.U)
             val offset = offsetRaw >> log2Ceil(ratio).U
-            printf("offset: %x\n", offset)
+//            printf("offset: %x\n", offset)
 
             val out = Wire(UInt(dataWidth.W))
             out := 0.U
