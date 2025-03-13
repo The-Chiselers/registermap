@@ -185,13 +185,13 @@ class RegisterMap(
 
         for (r <- registers) {
             val capitalizedName = r.name.toUpperCase
-            val offsetHex       = f"0x${r.offset * (dataWidth / wordWidth)}%X"
+            val offsetHex       = f"0x${r.offset}%X"
             println(
               s"#define ${capitalizedName}_OFFSET ${offsetHex}"
             )
         }
         println()
-        println("#endif")
+        println("#endif REGISTER_MAP_H")
     }
 
 }
