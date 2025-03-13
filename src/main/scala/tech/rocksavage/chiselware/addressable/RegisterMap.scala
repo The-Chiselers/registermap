@@ -4,28 +4,33 @@ import chisel3._
 import chisel3.util._
 import tech.rocksavage.chiselware.addrdecode.AddrDecodeParams
 
-class RegisterMap(val dataWidth: Int, val addressWidth: Int, val wordWidthOption: Option[Int] = None) {
+class RegisterMap(
+    val dataWidth: Int,
+    val addressWidth: Int,
+    val wordWidthOption: Option[Int] = None
+) {
+    val wordWidth: Int = wordWidthOption.getOrElse(dataWidth)
     private var registers: List[RegisterDescription] = List.empty
     private var currentOffset: Int                   = 0
     private var currentId: Int                       = 0
-
-    val wordWidth: Int = wordWidthOption.getOrElse(dataWidth)
 
     // Ensure that the data width is a multiple of the word width
     require(dataWidth % wordWidth == 0)
 
     // require the ratio of dataWidth to wordWidth is a power of 2
-    require(dataWidth / wordWidth == 1 || dataWidth / wordWidth == 2 || dataWidth / wordWidth == 4 || dataWidth / wordWidth == 8)
+    require(
+      dataWidth / wordWidth == 1 || dataWidth / wordWidth == 2 || dataWidth / wordWidth == 4 || dataWidth / wordWidth == 8
+    )
 
     def createAddressableRegister[T <: Data](
-                                              register: T,
-                                              regName: String,
-                                              readOnly: Boolean = false,
-                                              verbose: Boolean = false
-                                            ): Unit = {
+        register: T,
+        regName: String,
+        readOnly: Boolean = false,
+        verbose: Boolean = false
+    ): Unit = {
         val registerWidth = register.getWidth
         val numDatas      = ((registerWidth + dataWidth - 1) / dataWidth)
-        val ratio        = dataWidth / wordWidth
+        val ratio         = dataWidth / wordWidth
         val numWords      = numDatas * ratio
 
         // Generate the read function
@@ -65,8 +70,8 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int, val wordWidthOption
             }
             if (verbose) {
                 printf(
-                    s"Register ${regName} read with value %x\n",
-                    out
+                  s"Register ${regName} read with value %x\n",
+                  out
                 )
             }
             out
@@ -100,8 +105,8 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int, val wordWidthOption
             register   := newRegUInt.asTypeOf(register)
             if (verbose) {
                 printf(
-                    s"Register ${regName} written with value %x\n",
-                    newRegUInt
+                  s"Register ${regName} written with value %x\n",
+                  newRegUInt
                 )
             }
         }
@@ -109,8 +114,8 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int, val wordWidthOption
         def readOnlyAttemptWrite(offset: UInt, value: UInt): Unit = {
             if (verbose) {
                 printf(
-                    s"Attempted write to read-only register ${regName} with value %x\n",
-                    value
+                  s"Attempted write to read-only register ${regName} with value %x\n",
+                  value
                 )
             }
         }
@@ -118,33 +123,33 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int, val wordWidthOption
         // Add the register to the RegisterMap
         if (readOnly)
             addRegister(
-                regName,
-                registerWidth,
-                readFunction,
-                readOnlyAttemptWrite
+              regName,
+              registerWidth,
+              readFunction,
+              readOnlyAttemptWrite
             )
         else
             addRegister(
-                regName,
-                registerWidth,
-                readFunction,
-                writeCallback
+              regName,
+              registerWidth,
+              readFunction,
+              writeCallback
             )
     }
 
     def addRegister(
-                     name: String,
-                     width: Int,
-                     readCallback: UInt => UInt,
-                     writeCallback: (UInt, UInt) => Unit
-                   ): RegisterDescription = {
+        name: String,
+        width: Int,
+        readCallback: UInt => UInt,
+        writeCallback: (UInt, UInt) => Unit
+    ): RegisterDescription = {
         val reg = RegisterDescription(
-            name,
-            width,
-            currentOffset,
-            currentId,
-            readCallback,
-            writeCallback
+          name,
+          width,
+          currentOffset,
+          currentId,
+          readCallback,
+          writeCallback
         )
         registers = registers :+ reg
         currentOffset += ((width + dataWidth - 1) / dataWidth) * (dataWidth / wordWidth)
@@ -171,6 +176,22 @@ class RegisterMap(val dataWidth: Int, val addressWidth: Int, val wordWidthOption
         registers.foreach(r => {
             println(s"Name: ${r.name}, Width: ${r.width}, Offset: ${r.offset}")
         })
+    }
+
+    def printHeaderFile(): Unit = {
+        println("#ifndef REGISTER_MAP_H")
+        println("#define REGISTER_MAP_H")
+        println(s"// Word width in bits: ${(dataWidth / wordWidth)}")
+
+        for (r <- registers) {
+            val capitalizedName = r.name.toUpperCase
+            val offsetHex       = f"0x${r.offset * (dataWidth / wordWidth)}%X"
+            println(
+              s"#define ${capitalizedName}_OFFSET ${offsetHex}"
+            )
+        }
+        println()
+        println("#endif")
     }
 
 }
