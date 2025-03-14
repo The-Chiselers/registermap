@@ -194,4 +194,22 @@ class RegisterMap(
         println("#endif REGISTER_MAP_H")
     }
 
+    def getHeaderFile(): String = {
+        val header = new StringBuilder
+        header.append("#ifndef REGISTER_MAP_H\n")
+        header.append("#define REGISTER_MAP_H\n")
+        header.append(s"// Word width in bits: ${(dataWidth / wordWidth)}\n")
+
+        for (r <- registers) {
+            val capitalizedName = r.name.toUpperCase
+            val offsetHex       = f"0x${r.offset}%X"
+            header.append(
+              s"#define ${capitalizedName}_OFFSET ${offsetHex}\n"
+            )
+        }
+        header.append("\n")
+        header.append("#endif REGISTER_MAP_H\n")
+        header.toString()
+    }
+
 }
